@@ -60,6 +60,8 @@ type CrowdSec struct {
 	APIUrl string `json:"api_url,omitempty"`
 	// APIKey for the CrowdSec Local API.
 	APIKey string `json:"api_key"`
+	// **APIKeyFile** contains the path to a file containing the CrowdSec API key.
+	APIKeyFile string `json:"api_key_file"`
 	// TickerInterval is the interval the StreamBouncer uses for querying
 	// the CrowdSec Local API. Defaults to "60s".
 	TickerInterval string `json:"ticker_interval,omitempty"`
@@ -119,6 +121,7 @@ func (c *CrowdSec) Provision(ctx caddy.Context) error {
 	repl := caddy.NewReplacer() // create replacer with the default, global replacement functions, including ".env" env var reading
 	c.APIUrl = repl.ReplaceKnown(c.APIUrl, "")
 	c.APIKey = repl.ReplaceKnown(c.APIKey, "")
+	c.APIKeyFile = repl.ReplaceKnown(c.APIKeyFile, "")
 	c.TickerInterval = repl.ReplaceKnown(c.TickerInterval, "")
 	c.AppSecUrl = repl.ReplaceKnown(c.AppSecUrl, "")
 
@@ -132,6 +135,23 @@ func (c *CrowdSec) Provision(ctx caddy.Context) error {
 	var registry *prometheus.Registry
 	if c.enableCaddyMetrics() {
 		registry = ctx.GetMetricsRegistry()
+	}
+
+	if c.APIKey != "" && c.APIKeyFile != "" {
+		return fmt.Errorf("api_key and api_key_file cannot both be configured")
+	}
+
+	if c.APIKeyFile != "" {
+		key, err := os.ReadFile(c.APIKeyFile)
+		if err != nil {
+			return fmt.Errorf("reading api_key_file: %w", err)
+		}
+
+		c.APIKey = strings.TrimSpace(string(key))
+
+		if c.APIKey == "" {
+			return fmt.Errorf("api_key_file is empty")
+		}
 	}
 
 	core, err := core.New(c.APIKey, c.APIUrl, c.isStreamingEnabled(), c.AppSecUrl, c.appSecMaxBodySize(), c.appSecTimeout(), c.isAppSecFailOpenEnabled(), c.tickerInterval(), c.shouldFailHard(), c.logger, registry, c.metricsInterval())

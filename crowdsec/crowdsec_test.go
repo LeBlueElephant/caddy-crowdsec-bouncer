@@ -23,6 +23,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"os"
+	"path/filepath"
 
 	"github.com/caddyserver/caddy/v2"
 	"github.com/stretchr/testify/assert"
@@ -143,6 +145,14 @@ func TestCrowdSecValidates(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "api_key_and_api_key_file",
+			config: `{
+				"api_key": "test-key",
+				"api_key_file": "/run/secrets/crowdsec_api_key"
+			}`,
+			wantErr: true,
+		},
+		{
 			name: "fail/missing-api-key",
 			config: `{
 				"api_url": "http://localhost:8080",
@@ -168,6 +178,80 @@ func TestCrowdSecValidates(t *testing.T) {
 			}
 
 			assert.NoError(t, err)
+		})
+	}
+}
+
+func TestResolveAPIKey(t *testing.T) {
+	tests := []struct {
+		name       string
+		apiKey     string
+		apiKeyFile string
+		fileData   string
+		wantKey    string
+		wantErr    bool
+	}{
+		{
+			name:       "literal api key",
+			apiKey:     "test-key",
+			wantKey:    "test-key",
+			wantErr:    false,
+		},
+		{
+			name:       "api key file",
+			apiKeyFile: "test-key-file",
+			fileData:   "test-file-key\n",
+			wantKey:    "test-file-key",
+			wantErr:    false,
+		},
+		{
+			name:       "both api key and file",
+			apiKey:     "test-key",
+			apiKeyFile: "test-key-file",
+			wantErr:    true,
+		},
+		{
+			name:       "missing file",
+			apiKeyFile: "does-not-exist",
+			wantErr:    true,
+		},
+		{
+			name:       "empty file",
+			apiKeyFile: "empty-key-file",
+			fileData:   "   \n",
+			wantErr:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cs := &CrowdSec{
+				APIKey: tt.apiKey,
+			}
+
+			if tt.apiKeyFile != "" {
+				if tt.fileData != "" {
+					dir := t.TempDir()
+					path := filepath.Join(dir, tt.apiKeyFile)
+
+					err := os.WriteFile(path, []byte(tt.fileData), 0600)
+					require.NoError(t, err)
+
+					cs.APIKeyFile = path
+				} else {
+					cs.APIKeyFile = filepath.Join(t.TempDir(), tt.apiKeyFile)
+				}
+			}
+
+			err := cs.resolveAPIKey()
+
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+			require.Equal(t, tt.wantKey, cs.APIKey)
 		})
 	}
 }

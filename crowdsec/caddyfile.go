@@ -53,6 +53,11 @@ func parseCrowdSec(d *caddyfile.Dispenser, existingVal any) (any, error) {
 				return nil, d.ArgErr()
 			}
 			cs.APIKey = d.Val()
+		case "api_key_file":
+			if !d.NextArg() {
+				return nil, d.ArgErr()
+			}
+			cs.APIKeyFile = d.Val()
 		case "ticker_interval":
 			if !d.NextArg() {
 				return nil, d.ArgErr()

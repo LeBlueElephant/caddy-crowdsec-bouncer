@@ -126,6 +126,18 @@ func TestUnmarshalCaddyfile(t *testing.T) {
 			wantParseErr: true,
 		},
 		{
+			name: "api-key-file",
+			input: `crowdsec {
+				api_key_file /run/secrets/crowdsec_api_key
+			}`,
+			expected: &CrowdSec{
+				TickerInterval:  "60s",
+				EnableStreaming: &tv,
+				EnableHardFails: &fv,
+				APIKeyFile:      "/run/secrets/crowdsec_api_key",
+			},
+		},
+		{
 			name:     "fail/enable-caddy-error-with-args",
 			expected: &CrowdSec{},
 			input: `crowdsec {
